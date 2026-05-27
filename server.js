@@ -1,4 +1,3 @@
-
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
@@ -34,26 +33,9 @@ const uploadCooldowns = {};
 const UPLOAD_COOLDOWN = 3 * 60 * 1000;
 
 app.get('/tracks',(req,res)=>{
-    const ip =
-    req.headers['x-forwarded-for'] ||
-    req.socket.remoteAddress ||
-    'unknown';
-
-    const lastUpload = uploadCooldowns[ip];
-
-    if(lastUpload &&
-    Date.now() - lastUpload < UPLOAD_COOLDOWN){
-
-        return res.status(429).json({
-            error:'Подожди 3 минуты перед загрузкой'
-        });
-
-    }
-
     const tracks = JSON.parse(fs.readFileSync('tracks.json'));
     res.json(tracks);
 });
-
 
 app.post('/track/:id/play',(req,res)=>{
 
@@ -63,11 +45,9 @@ app.post('/track/:id/play',(req,res)=>{
     tracks.findIndex(t => t.id == req.params.id);
 
     if(trackIndex === -1){
-
         return res.status(404).json({
             error:'Track not found'
         });
-
     }
 
     tracks[trackIndex].plays += 1;
@@ -92,11 +72,9 @@ app.post('/track/:id/like',(req,res)=>{
     tracks.findIndex(t => t.id == req.params.id);
 
     if(trackIndex === -1){
-
         return res.status(404).json({
             error:'Track not found'
         });
-
     }
 
     tracks[trackIndex].likes += 1;
@@ -113,11 +91,32 @@ app.post('/track/:id/like',(req,res)=>{
 
 });
 
-
 app.post('/upload', upload.fields([
     {name:'cover',maxCount:1},
     {name:'audio',maxCount:1}
 ]), (req,res)=>{
+
+    const ip =
+    req.headers['x-forwarded-for'] ||
+    req.socket.remoteAddress ||
+    'unknown';
+
+    const lastUpload = uploadCooldowns[ip];
+
+    if(
+        lastUpload &&
+        Date.now() - lastUpload < UPLOAD_COOLDOWN
+    ){
+        return res.status(429).json({
+            error:'Подожди 3 минуты перед загрузкой'
+        });
+    }
+
+    if(!req.files || !req.files.cover || !req.files.audio){
+        return res.status(400).json({
+            error:'Файлы не загружены'
+        });
+    }
 
     const tracks = JSON.parse(fs.readFileSync('tracks.json'));
 
@@ -133,7 +132,10 @@ app.post('/upload', upload.fields([
 
     tracks.unshift(track);
 
-    fs.writeFileSync('tracks.json', JSON.stringify(tracks,null,2));
+    fs.writeFileSync(
+        'tracks.json',
+        JSON.stringify(tracks,null,2)
+    );
 
     uploadCooldowns[ip] = Date.now();
 
